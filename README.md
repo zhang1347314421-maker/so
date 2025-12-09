@@ -1,11 +1,18 @@
-<div align="center">
+# 流光漫剧 (Liuguang ScriptViz) - 单文件版
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+这是一个集成了所有功能的单文件应用。
 
-  <h1>Built with AI Studio</h2>
+## 使用方法
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1. 只需要保留 `index.html` 文件。
+2. **直接双击** `index.html` 即可在浏览器中运行（推荐使用 Chrome 或 Edge）。
+3. 无需安装 Node.js，无需配置环境。
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## API 配置
 
-</div>
+首次打开后，请点击中间栏顶部的 **“⚙️ API 配置”** 按钮，填入您的服务商 Key：
+- **剧本分析**: 兼容 OpenAI 格式的 LLM 接口
+- **图片**: Comfly / Flux 接口
+- **视频**: 云雾 / Luma 接口
+
+数据会自动保存在浏览器的本地缓存中。

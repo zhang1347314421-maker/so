@@ -1,0 +1,5 @@
+{
+  "name": "流光漫剧 (Liuguang)",
+  "description": "一个AI驱动的漫剧生产工具，能够分析剧本、生成分镜漫画，并调用流光/Flux/Video API 制作视频。",
+  "requestFramePermissions": []
+}
