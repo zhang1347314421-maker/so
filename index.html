@@ -1,32 +1,20 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>流光漫剧 (Liuguang AI) - 单文件版</title>
-    <!-- Tailwind CSS -->
+    <title>流光漫剧 (Liuguang AI) - 桌面版</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel for JSX compilation in browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons (CDN version) -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    
     <style>
-      body {
-        background-color: #0f172a; /* slate-900 */
-        color: #f8fafc; /* slate-50 */
-        margin: 0;
-        overflow: hidden; /* App handles scrolling */
-      }
-      /* Custom scrollbar */
+      body { background-color: #0f172a; color: #f8fafc; margin: 0; overflow: hidden; user-select: none; }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: #1e293b; }
       ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+      .drag-active { border-color: #fbbf24 !important; background-color: rgba(251, 191, 36, 0.1) !important; }
     </style>
 <script type="importmap">
 {
@@ -43,654 +31,625 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useCallback } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
 
-        // --- ICONS (Lucide Wrapper) ---
+        // --- ERROR BOUNDARY (防止白屏) ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            componentDidCatch(error, errorInfo) { console.error("Uncaught error:", error, errorInfo); }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="h-screen w-full flex flex-col items-center justify-center bg-red-950 text-white p-10">
+                            <h1 className="text-3xl font-bold mb-4">程序发生错误 (Crash)</h1>
+                            <p className="mb-4 text-red-200">请截图发给开发者：</p>
+                            <pre className="bg-black/50 p-6 rounded border border-red-800 text-sm font-mono max-w-4xl overflow-auto w-full">
+                                {this.state.error && this.state.error.toString()}
+                            </pre>
+                            <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-8 bg-white text-red-900 px-6 py-2 rounded font-bold hover:bg-gray-200">
+                                清除缓存并重启 (尝试修复)
+                            </button>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        // --- ICONS ---
         const Icon = ({ name, className, ...props }) => {
             const iconRef = useRef(null);
-            useEffect(() => {
-                if (window.lucide) {
-                    window.lucide.createIcons({
-                        root: iconRef.current,
-                        nameAttr: 'data-lucide-name',
-                        attrs: { class: className, ...props }
-                    });
-                }
+            useEffect(() => { 
+                if (window.lucide) window.lucide.createIcons({ root: iconRef.current, nameAttr: 'data-lucide-name', attrs: { class: className, ...props } }); 
             }, [name, className]);
             return <i ref={iconRef} data-lucide-name={name} className={className} {...props}></i>;
         };
+        const Sparkles = p => <Icon name="sparkles" {...p} />;
+        const BookOpen = p => <Icon name="book-open" {...p} />;
+        const Settings = p => <Icon name="settings" {...p} />;
+        const VideoIcon = p => <Icon name="video" {...p} />;
+        const ImageIcon = p => <Icon name="image" {...p} />;
+        const Loader2 = p => <Icon name="loader-2" {...p} />;
+        const Trash2 = p => <Icon name="trash-2" {...p} />;
+        const ArrowLeft = p => <Icon name="arrow-left" {...p} />;
+        const Library = p => <Icon name="library" {...p} />;
+        const ChevronDown = p => <Icon name="chevron-down" {...p} />;
+        const ChevronRight = p => <Icon name="chevron-right" {...p} />;
+        const Plus = p => <Icon name="plus" {...p} />;
+        const User = p => <Icon name="user" {...p} />;
+        const Check = p => <Icon name="check" {...p} />;
+        const AlertCircle = p => <Icon name="alert-circle" {...p} />;
 
-        const Sparkles = (props) => <Icon name="sparkles" {...props} />;
-        const BookOpen = (props) => <Icon name="book-open" {...props} />;
-        const User = (props) => <Icon name="user" {...props} />;
-        const MapPin = (props) => <Icon name="map-pin" {...props} />;
-        const Package = (props) => <Icon name="package" {...props} />;
-        const Upload = (props) => <Icon name="upload" {...props} />;
-        const ImageIcon = (props) => <Icon name="image" {...props} />;
-        const Settings = (props) => <Icon name="settings" {...props} />;
-        const CheckCircle2 = (props) => <Icon name="check-circle-2" {...props} />;
-        const AlertCircle = (props) => <Icon name="alert-circle" {...props} />;
-        const RefreshCw = (props) => <Icon name="refresh-cw" {...props} />;
-        const BrainCircuit = (props) => <Icon name="brain-circuit" {...props} />;
-        const VideoIcon = (props) => <Icon name="video" {...props} />;
-        const Loader2 = (props) => <Icon name="loader-2" {...props} />;
-        const Clapperboard = (props) => <Icon name="clapperboard" {...props} />;
-        const Edit2 = (props) => <Icon name="edit-2" {...props} />;
-        const Film = (props) => <Icon name="film" {...props} />;
-        const Plus = (props) => <Icon name="plus" {...props} />;
-        const FolderOpen = (props) => <Icon name="folder-open" {...props} />;
-        const Trash2 = (props) => <Icon name="trash-2" {...props} />;
-        const ArrowLeft = (props) => <Icon name="arrow-left" {...props} />;
-        const Library = (props) => <Icon name="library" {...props} />;
-        const ChevronDown = (props) => <Icon name="chevron-down" {...props} />;
-        const ChevronRight = (props) => <Icon name="chevron-right" {...props} />;
+        // --- API SERVICES ---
+        const callProxy = async (targetUrl, apiKey, body, method = 'POST') => {
+            if (!targetUrl) throw new Error("API 地址为空");
+            try {
+                const response = await fetch('/api/proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_url: targetUrl, api_key: apiKey, method, body })
+                });
+                
+                if (!response.ok) throw new Error("本地代理服务异常");
+                const result = await response.json();
+                
+                // 检查是否返回了 HTML (URL错误常见情况)
+                if (typeof result.data === 'string' && result.data.trim().startsWith('<')) {
+                    throw new Error("API 返回了网页而非 JSON。请检查 URL 是否正确 (不要填写文档地址)");
+                }
 
-
-        // --- SERVICE LAYER ---
-
-        const saveProjects = (projects) => {
-            localStorage.setItem('scriptviz_projects', JSON.stringify(projects));
-        };
-
-        const loadProjects = () => {
-            const data = localStorage.getItem('scriptviz_projects');
-            return data ? JSON.parse(data) : [];
+                if (!result.ok) {
+                    const errMsg = result.data?.error?.message || result.data?.error || JSON.stringify(result.data) || "API 请求失败";
+                    throw new Error(`外部 API 报错: ${errMsg}`);
+                }
+                return result.data;
+            } catch (e) {
+                console.error("Proxy Error", e);
+                throw e;
+            }
         };
 
         const cleanJsonString = (text) => {
+            if (typeof text !== 'string') return text;
             let cleaned = text.trim();
-            if (cleaned.startsWith('```json')) {
-                cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-            } else if (cleaned.startsWith('```')) {
-                cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
-            }
+            if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
             return cleaned;
         };
 
-        const safeJsonParse = async (response, context) => {
-            const text = await response.text();
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                if (text.trim().toLowerCase().startsWith('<')) {
-                    throw new Error(`${context}: 接口返回了 HTML 网页而非 JSON 数据。您可能填入了文档网址而非 API 接口地址。返回预览: ${text.slice(0, 100)}...`);
-                }
-                throw new Error(`${context}: 数据解析失败 (${response.status}) - ${text.slice(0, 100)}...`);
-            }
-        };
+        const analyzeScript = async (script, settings, libs) => {
+            if (!settings.analysisApiUrl || !settings.analysisApiKey) throw new Error("请配置分析 API");
+            
+            const systemPrompt = `你是一个专业导演。
+            任务：将剧本拆分为约15个镜头。
+            
+            【核心设定库】
+            1. 剧本分析风格: ${libs.script || "标准商业片结构"}
+            2. 画面生成风格(Visual): ${libs.image || "High Quality, 4k"}
+            3. 视频生成风格(Video): ${libs.video || "Cinematic, Stable"}
 
-        const analyzeScript = async (scriptText, settings, libraries) => {
-            if (!settings?.analysisApiUrl || !settings?.analysisApiKey) {
-                throw new Error("请先在【设置】中配置剧本分析/推理 API (URL 和 Key)。");
-            }
-
-            // 构造包含“设定库”的 Prompt
-            const scriptRules = libraries?.script ? libraries.script : "标准电影叙事风格";
-            const imageRules = libraries?.image ? libraries.image : "高质量动漫风格 (Anime style, high quality)";
-            const videoRules = libraries?.video ? libraries.video : "电影质感 (Cinematic lighting, 4k)";
-
-            const systemPrompt = `
-                你是一位专业的动画/电影导演及提示词工程师。
-                
-                【任务目标】
-                分析用户提供的剧本，将其拆解为大约 15 个独立的分镜镜头 (Shots)，并为每个镜头编写用于 AI 生成的提示词。
-
-                【核心设定库 (必须严格遵守)】
-                1. 剧本/剧情分析风格：
-                   ${scriptRules}
-                   (请依据此风格决定分镜的节奏、重点和人物情感分析)
-
-                2. 画面提示词风格 (Visual Prompt Style)：
-                   用户的画面设定库内容为："${imageRules}"
-                   **指令**：在编写 'visualPrompt' 字段时，必须将上述风格要求自然融入到英文提示词中。不要只是简单的复制，要结合镜头内容将其转化为具体的画面描述（如光影、构图、材质）。
-
-                3. 视频提示词风格 (Video Prompt Style)：
-                   用户的视频设定库内容为："${videoRules}"
-                   **指令**：在编写 'videoPrompt' 字段时，必须将上述风格要求（如运镜方式、帧率、质感）自然融入到英文提示词中。
-
-                【输出要求】
-                1. 识别所有【主要角色】、【场景】和关键【道具】。返回为 'entities' 数组。description 请用中文详细描述外观。
-                2. 将剧本拆分为大约 15 个独立的镜头/节拍。返回为 'shots' 数组。
-                3. 对于每个镜头 (Shot)，生成：
-                   - 'shotNumber': 数字序号。
-                   - 'scriptSegment': 该镜头的具体台词或动作描述（保留中文）。
-                   - 'panelDescription': 针对 5 格漫画布局的画面描述（请用中文）。
-                   - 'visualPrompt': **必须用英文**。用于 Flux/Midjourney 的生图提示词。必须包含【画面设定库】中的风格。
-                   - 'videoPrompt': **必须用英文**。用于 Luma/Runway 的视频提示词。必须包含【视频设定库】中的运镜和质感设定。
-                
-                **重要：请只返回纯净的 JSON 字符串，不要包含 Markdown 格式。**
-                JSON 结构示例:
-                { "entities": [{ "name": "...", "type": "CHARACTER", "description": "..." }], "shots": [{ "shotNumber": 1, "scriptSegment": "...", "visualPrompt": "...", "videoPrompt": "..." }] }
+            要求：
+            - 分析剧情中的关键角色和场景，提取为 entities。
+            - 将剧本拆解为 shots (10-15个)。
+            - 编写 visualPrompt 时，必须融合上述【画面生成风格】。
+            - 编写 videoPrompt 时，必须融合上述【视频生成风格】。
+            
+            请返回纯 JSON (不要 Markdown)，包含:
+            { "entities": [{"name": "...", "type": "CHARACTER/SCENE", "description": "..."}],
+              "shots": [{"shotNumber": 1, "scriptSegment": "...", "visualPrompt": "英文提示词...", "videoPrompt": "英文视频提示词..."}] }
             `;
 
-            console.log("正在调用通用分析 API...");
-            try {
-                const response = await fetch(settings.analysisApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.analysisApiKey}` },
-                    body: JSON.stringify({
-                        model: "default", 
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: `剧本内容:\n${scriptText}` }
-                        ],
-                        temperature: 0.7
-                    })
-                });
-
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(`API Error (${response.status}): ${errText.slice(0, 100)}`);
-                }
-
-                const data = await safeJsonParse(response, "通用分析 API");
-                const content = data.choices?.[0]?.message?.content;
-                if (!content) throw new Error("API 返回内容为空");
-                
-                const parsedData = JSON.parse(cleanJsonString(content));
-                
-                 if (!parsedData.entities || !parsedData.shots) throw new Error("返回数据缺少 entities 或 shots 字段");
-                 
-                 const entities = parsedData.entities.map((e, i) => ({ ...e, id: `entity-${Date.now()}-${i}`, referenceImage: undefined }));
-                 const shots = parsedData.shots.map((s, i) => ({ ...s, id: `shot-${Date.now()}-${i}`, isGeneratingImage: false, isGeneratingVideo: false }));
-
-                return { entities, shots };
-            } catch (e) {
-                console.error("API Fail", e);
-                throw new Error(`剧本分析失败: ${e.message}`);
-            }
-        };
-
-        const testApiConnection = async (url, key, type) => {
-            if (!url || !key) return { success: false, message: "URL 或 Key 不能为空" };
-            if (!url.startsWith('http')) return { success: false, message: "URL 必须以 http 开头" };
-
-            try {
-                let body = {};
-                if (type === 'ANALYSIS') body = { model: "default", messages: [{ role: "user", content: "test" }], max_tokens: 5 };
-                else if (type === 'IMAGE') body = { prompt: "test", aspect_ratio: "1:1", mode: "flux-pro" };
-                else if (type === 'VIDEO') body = { prompt: "test video", model: "luma-video" };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                    body: JSON.stringify(body)
-                });
-
-                if (response.status === 401 || response.status === 403) return { success: false, message: "鉴权失败: Key 无效" };
-                if (response.status === 404) return { success: false, message: "接口不存在 (404)" };
-
-                const data = await safeJsonParse(response, "连接测试");
-                
-                if (type === 'ANALYSIS' && (data.choices || data.content)) return { success: true, message: "连接成功: LLM 响应正常" };
-                if (type === 'IMAGE' && (data.url || data.image_url || data.data)) return { success: true, message: "连接成功: 图片接口正常" };
-                if (type === 'VIDEO' && (data.task_id || data.id || data.data?.task_id)) return { success: true, message: "连接成功: 视频任务正常" };
-                
-                if (response.ok) return { success: true, message: "连接成功 (200 OK)" };
-                
-                return { success: false, message: `请求失败: ${response.status} ${data?.error?.message || ''}` };
-            } catch (e) {
-                return { success: false, message: e.message };
-            }
-        };
-
-        const generateComicStrip = async (finalPrompt, entities, settings, libraries) => {
-            if (!settings?.imageApiUrl || !settings?.imageApiKey) throw new Error("请先配置图片 API");
-            
-            // 注意：因为 Analysis 阶段已经把 Library 融合进 finalPrompt 了，这里不需要再强制拼接
-            // 但为了保险，如果 prompt 意外为空，可以给个保底
-            const promptToSend = finalPrompt || libraries?.image || "high quality";
-
-            try {
-                const response = await fetch(settings.imageApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.imageApiKey}` },
-                    body: JSON.stringify({ prompt: promptToSend, aspect_ratio: "3:4", mode: "flux-pro" })
-                });
-                if (!response.ok) throw new Error(`API 错误 ${response.status}`);
-                const data = await safeJsonParse(response, "图片生成 API");
-                const resultUrl = data.url || data.data?.[0]?.url || data.image_url;
-                if (!resultUrl) throw new Error("未找到图片 URL");
-                return resultUrl;
-            } catch (error) { throw error; }
-        };
-
-        const generateVeoVideo = async (finalPrompt, sceneReferenceImage, settings, libraries) => {
-            if (!settings?.videoApiUrl || !settings?.videoApiKey) throw new Error("请先配置视频 API");
-            
-            // Analysis 阶段已融合 Video Library，直接使用
-            const promptToSend = finalPrompt || libraries?.video || "cinematic video";
-
-            // 1. Create Task
-            let taskBody = { prompt: promptToSend, model: "luma-video", aspect_ratio: "16:9" };
-            if (sceneReferenceImage) taskBody.image_url = sceneReferenceImage;
-
-            const taskRes = await fetch(settings.videoApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.videoApiKey}` },
-                body: JSON.stringify(taskBody)
+            const data = await callProxy(settings.analysisApiUrl, settings.analysisApiKey, {
+                model: "gpt-4o", 
+                messages: [{role: "system", content: systemPrompt}, {role: "user", content: script}],
+                temperature: 0.7
             });
-            if (!taskRes.ok) throw new Error(`任务创建失败 ${taskRes.status}`);
-            const taskData = await safeJsonParse(taskRes, "视频创建 API");
-            const taskId = taskData.task_id || taskData.id || taskData.data?.task_id;
-            if (!taskId) throw new Error("API 未返回 Task ID");
 
-            // 2. Poll
-            let queryUrl = settings.videoApiUrl;
-            if (queryUrl.endsWith('/generate') || queryUrl.endsWith('/create')) queryUrl = queryUrl.replace(/\/generate$|\/create$/, '/query');
+            const content = data.choices?.[0]?.message?.content;
+            if (!content) throw new Error("API返回数据格式错误 (缺少 choices)");
             
-            let attempts = 0;
-            while (attempts < 60) {
+            try {
+                const parsed = JSON.parse(cleanJsonString(content));
+                return {
+                    entities: parsed.entities.map((e, i) => ({...e, id: `e-${Date.now()}-${i}`})),
+                    shots: parsed.shots.map((s, i) => ({...s, id: `s-${Date.now()}-${i}`}))
+                };
+            } catch (e) {
+                throw new Error("解析 AI 返回的 JSON 失败: " + content.substring(0, 100));
+            }
+        };
+
+        const generateImage = async (prompt, settings) => {
+            if (!settings.imageApiUrl || !settings.imageApiKey) throw new Error("请配置图片 API");
+            const data = await callProxy(settings.imageApiUrl, settings.imageApiKey, {
+                prompt: prompt,
+                aspect_ratio: "16:9",
+                model: "flux-pro"
+            });
+            return data.url || data.data?.[0]?.url || data.image_url;
+        };
+
+        const generateVideo = async (prompt, refImg, settings) => {
+            if (!settings.videoApiUrl || !settings.videoApiKey) throw new Error("请配置视频 API");
+            
+            let body = { prompt: prompt, model: "luma-video", aspect_ratio: "16:9" };
+            if (refImg) body.image_url = refImg;
+
+            const taskData = await callProxy(settings.videoApiUrl, settings.videoApiKey, body);
+            const taskId = taskData.task_id || taskData.id || taskData.data?.task_id;
+            
+            if (!taskId) throw new Error("创建任务失败，未返回 Task ID");
+
+            let queryUrl = settings.videoApiUrl;
+            if (queryUrl.includes("create")) queryUrl = queryUrl.replace("create_task", "get_task").replace("create", "query");
+            
+            for (let i = 0; i < 20; i++) { 
                 await new Promise(r => setTimeout(r, 3000));
-                attempts++;
-                const checkUrl = `${queryUrl.includes('?') ? queryUrl : queryUrl + '?'}id=${taskId}&task_id=${taskId}`;
-                const queryRes = await fetch(checkUrl, { method: 'GET', headers: { 'Authorization': `Bearer ${settings.videoApiKey}` }});
-                if (queryRes.ok) {
-                    const qData = await safeJsonParse(queryRes, "查询视频");
-                    const status = qData.status || qData.data?.status;
-                    if (status === 'success' || status === 'completed') return qData.video_url || qData.url || qData.result || qData.data?.video_url;
-                    if (status === 'failed') throw new Error("任务返回失败状态");
-                }
+                const qData = await callProxy(queryUrl, settings.videoApiKey, { task_id: taskId }, 'GET');
+                const status = qData.status || qData.data?.status;
+                if (status === 'success' || status === 'completed') return qData.video_url || qData.data?.video_url || qData.url;
+                if (status === 'failed') throw new Error("视频生成任务失败");
             }
             throw new Error("视频生成超时");
         };
 
-
         // --- COMPONENTS ---
 
-        // 1. ScriptInput
-        const ScriptInput = ({ onAnalyze, isAnalyzing }) => {
-            const [text, setText] = useState('');
-            const example = `【场景】小卖部 - 白天\n【人物】张三、李四\n张三：（做出夸张表情）你看我新买的这个...\n李四：（打断）你又买什么垃圾呢？\n【动作】张三假装生气，转身离开。`;
-            
+        const Dashboard = ({projects, onCreate, onSelect, onDelete}) => {
+            const [name, setName] = useState('');
             return (
-                <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800">
-                    <div className="p-4 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
-                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                            <BookOpen className="w-5 h-5 text-indigo-400" /> 1. 剧本输入
-                        </h2>
-                        <p className="text-slate-400 text-xs mt-1">粘贴剧本，AI 自动拆解 15 个镜头。</p>
+                <div className="p-10 max-w-5xl mx-auto h-screen overflow-y-auto">
+                    <h1 className="text-4xl font-bold mb-2 text-indigo-400">流光漫剧</h1>
+                    <p className="text-slate-400 mb-10">AI 驱动的漫剧与视频分镜生产工具</p>
+                    
+                    <div className="flex gap-4 mb-10 items-end">
+                        <div className="flex-1 max-w-md">
+                            <label className="block text-xs text-slate-500 mb-1 uppercase font-bold tracking-wider">新建项目</label>
+                            <input value={name} onChange={e=>setName(e.target.value)} placeholder="输入剧集名称 (例如: 第一集)" className="w-full bg-slate-800 text-white px-4 py-3 rounded-l border border-slate-700 focus:border-indigo-500 outline-none transition-colors"/>
+                        </div>
+                        <button onClick={() => {if(name) onCreate(name)}} className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-r font-bold transition-colors flex items-center gap-2">
+                            <Plus className="w-5 h-5"/> 创建
+                        </button>
                     </div>
-                    <div className="flex-1 p-4 flex flex-col min-h-0">
-                        <textarea
-                            value={text} onChange={(e) => setText(e.target.value)}
-                            placeholder="在此粘贴剧本..."
-                            className="flex-1 w-full bg-slate-800 text-slate-100 p-4 rounded-lg border border-slate-700 focus:border-indigo-500 focus:outline-none resize-none font-mono text-sm mb-4"
-                            disabled={isAnalyzing}
-                        />
-                        <div className="flex gap-2">
-                            <button onClick={() => setText(example)} disabled={isAnalyzing} className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium">加载示例</button>
-                            <button onClick={() => onAnalyze(text)} disabled={isAnalyzing || !text.trim()} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-                                {isAnalyzing ? <Loader2 className="animate-spin w-4 h-4"/> : <Sparkles className="w-4 h-4"/>}
-                                {isAnalyzing ? "正在分析..." : "分析剧本"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // 2. ContextPanel
-        const ContextPanel = ({ entities, onUpdateEntity, mode, onModeChange, settings, onUpdateSettings, libraries, onUpdateLibraries }) => {
-            const fileInputRef = useRef(null);
-            const activeEntityIdRef = useRef(null);
-            const [showSettings, setShowSettings] = useState(false);
-            const [showLibraries, setShowLibraries] = useState(true); // Default open libraries
-            const [testStatus, setTestStatus] = useState({ analysis: null, image: null, video: null });
-            const [isTesting, setIsTesting] = useState(false);
-
-            const handleFileUpload = (e) => {
-                const file = e.target.files?.[0];
-                if (file && activeEntityIdRef.current) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => onUpdateEntity(activeEntityIdRef.current, { referenceImage: reader.result });
-                    reader.readAsDataURL(file);
-                }
-            };
-
-            const triggerUpload = (id) => { activeEntityIdRef.current = id; fileInputRef.current?.click(); };
-
-            const runTests = async () => {
-                setIsTesting(true);
-                setTestStatus({ analysis: null, image: null, video: null });
-                const analysis = settings.analysisApiUrl ? await testApiConnection(settings.analysisApiUrl, settings.analysisApiKey, 'ANALYSIS') : null;
-                const image = settings.imageApiUrl ? await testApiConnection(settings.imageApiUrl, settings.imageApiKey, 'IMAGE') : null;
-                const video = settings.videoApiUrl ? await testApiConnection(settings.videoApiUrl, settings.videoApiKey, 'VIDEO') : null;
-                setTestStatus({ analysis, image, video });
-                setIsTesting(false);
-            };
-
-            const getIcon = (type) => {
-                if (type === 'CHARACTER') return <User className="w-4 h-4" />;
-                if (type === 'SCENE') return <MapPin className="w-4 h-4" />;
-                return <Package className="w-4 h-4" />;
-            };
-
-            const StatusMsg = ({ s }) => s ? (
-                <div className={`text-[10px] p-2 rounded flex items-center gap-2 ${s.success ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
-                    {s.success ? <CheckCircle2 className="w-3 h-3"/> : <AlertCircle className="w-3 h-3"/>} {s.message}
-                </div>
-            ) : null;
-
-            return (
-                <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 relative">
-                    <div className="p-4 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-bold text-white flex items-center gap-2"><Settings className="w-5 h-5 text-purple-400" /> 设置与素材</h2>
-                            <button onClick={() => setShowSettings(!showSettings)} className={`text-xs font-bold px-3 py-1.5 rounded-full border flex items-center gap-1 ${showSettings ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
-                                <Settings className="w-3 h-3" /> {showSettings ? '关闭配置' : '⚙️ API 配置'}
-                            </button>
-                        </div>
-                        <div className="bg-slate-800 p-1 rounded-lg flex text-xs font-bold mb-2">
-                            <button onClick={() => onModeChange('STORYBOARD')} className={`flex-1 py-2 rounded-md transition-all ${mode === 'STORYBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'}`}>分镜漫画模式</button>
-                            <button onClick={() => onModeChange('DIRECT_VIDEO')} className={`flex-1 py-2 rounded-md transition-all ${mode === 'DIRECT_VIDEO' ? 'bg-pink-600 text-white shadow' : 'text-slate-400'}`}>直接生成视频</button>
-                        </div>
-                    </div>
-
-                    {showSettings ? (
-                        <div className="p-4 space-y-4 overflow-y-auto pb-20">
-                            <p className="text-[10px] text-slate-500 mb-2">本应用依赖外部 API。请配置以下接口。</p>
-                            
-                            {/* Analysis */}
-                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-3">
-                                <h4 className="text-xs font-bold text-sky-400 flex gap-2"><BrainCircuit className="w-3 h-3" /> 剧本分析 (Comfly / 通用 LLM)</h4>
-                                <input type="text" value={settings.analysisApiUrl} onChange={e => onUpdateSettings({...settings, analysisApiUrl: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-xs text-slate-200" placeholder="https://.../v1/chat/completions" />
-                                <input type="password" value={settings.analysisApiKey} onChange={e => onUpdateSettings({...settings, analysisApiKey: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-xs text-slate-200" placeholder="sk-..." />
-                                <StatusMsg s={testStatus.analysis} />
-                            </div>
-
-                            {/* Image */}
-                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-3">
-                                <h4 className="text-xs font-bold text-indigo-400 flex gap-2"><ImageIcon className="w-3 h-3" /> 图片生成 (Comfly / Flux)</h4>
-                                <input type="text" value={settings.imageApiUrl} onChange={e => onUpdateSettings({...settings, imageApiUrl: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-xs text-slate-200" placeholder="https://.../v1/images/generations" />
-                                <input type="password" value={settings.imageApiKey} onChange={e => onUpdateSettings({...settings, imageApiKey: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-xs text-slate-200" placeholder="sk-..." />
-                                <StatusMsg s={testStatus.image} />
-                            </div>
-
-                            {/* Video */}
-                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-3">
-                                <h4 className="text-xs font-bold text-pink-400 flex gap-2"><VideoIcon className="w-3 h-3" /> 视频生成 (云雾 Yunwu)</h4>
-                                <input type="text" value={settings.videoApiUrl} onChange={e => onUpdateSettings({...settings, videoApiUrl: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-xs text-slate-200" placeholder="https://.../v1/video/create_task" />
-                                <input type="password" value={settings.videoApiKey} onChange={e => onUpdateSettings({...settings, videoApiKey: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-xs text-slate-200" placeholder="sk-..." />
-                                <StatusMsg s={testStatus.video} />
-                            </div>
-
-                            <button onClick={runTests} disabled={isTesting} className="bg-indigo-600 text-white px-4 py-3 rounded text-xs font-bold w-full flex justify-center gap-2 disabled:opacity-50">
-                                {isTesting ? <RefreshCw className="animate-spin w-3 h-3" /> : <RefreshCw className="w-3 h-3" />} 测试连接
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                            
-                            {/* Library Section (Agent Settings) */}
-                            <div className="space-y-2">
-                                <button onClick={() => setShowLibraries(!showLibraries)} className="w-full flex justify-between items-center text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 hover:text-amber-300">
-                                    <span className="flex items-center gap-2"><Library className="w-4 h-4"/> 设定库 (分析 AI 指令)</span>
-                                    {showLibraries ? <ChevronDown className="w-4 h-4"/> : <ChevronRight className="w-4 h-4"/>}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {projects.map(p => (
+                            <div key={p.id} onClick={() => onSelect(p)} className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800 transition-all cursor-pointer relative group">
+                                <h3 className="font-bold text-lg text-slate-200 mb-2">{p.name}</h3>
+                                <div className="flex justify-between items-center mt-4">
+                                    <span className="text-xs text-slate-500 bg-slate-950 px-2 py-1 rounded">{new Date(p.created).toLocaleDateString()}</span>
+                                    <span className="text-xs text-slate-500">{p.shots?.length || 0} 个镜头</span>
+                                </div>
+                                <button onClick={(e)=>{e.stopPropagation(); onDelete(p.id)}} className="absolute top-4 right-4 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                                    <Trash2 className="w-4 h-4"/>
                                 </button>
-                                
-                                {showLibraries && (
-                                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-200 bg-slate-800/30 p-3 rounded-lg border border-amber-900/30">
-                                        <div>
-                                            <label className="text-[10px] text-slate-400 block mb-1 font-bold">1. 剧本分析设定 (Script Analysis Rules)</label>
-                                            <p className="text-[10px] text-slate-500 mb-1">指示 AI 如何理解剧本风格、节奏和人物。</p>
-                                            <textarea 
-                                                value={libraries?.script || ''} 
-                                                onChange={e => onUpdateLibraries('script', e.target.value)} 
-                                                className="w-full bg-slate-800 text-slate-300 text-xs p-2 rounded border border-slate-700 focus:border-amber-500 focus:outline-none" 
-                                                rows={2} 
-                                                placeholder="例：赛博朋克风格，强调角色的内心独白，节奏紧凑..." 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-slate-400 block mb-1 font-bold">2. 画面提示词规范 (Visual Prompt Guide)</label>
-                                            <p className="text-[10px] text-slate-500 mb-1">指示 AI 如何编写生图提示词（画风、色调）。</p>
-                                            <textarea 
-                                                value={libraries?.image || ''} 
-                                                onChange={e => onUpdateLibraries('image', e.target.value)} 
-                                                className="w-full bg-slate-800 text-slate-300 text-xs p-2 rounded border border-slate-700 focus:border-indigo-500 focus:outline-none" 
-                                                rows={2} 
-                                                placeholder="例：Ghibli style, cel shaded, vibrant colors, masterpiece..." 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-slate-400 block mb-1 font-bold">3. 视频提示词规范 (Video Prompt Guide)</label>
-                                            <p className="text-[10px] text-slate-500 mb-1">指示 AI 如何编写视频提示词（运镜、电影质感）。</p>
-                                            <textarea 
-                                                value={libraries?.video || ''} 
-                                                onChange={e => onUpdateLibraries('video', e.target.value)} 
-                                                className="w-full bg-slate-800 text-slate-300 text-xs p-2 rounded border border-slate-700 focus:border-pink-500 focus:outline-none" 
-                                                rows={2} 
-                                                placeholder="例：Cinematic lighting, 4k, slow motion, highly detailed..." 
-                                            />
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-
-                            <hr className="border-slate-800"/>
-
-                            {/* Entities Section */}
-                            <div>
-                                <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2"><Package className="w-4 h-4"/> 元素框 (角色/场景)</h3>
-                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                {entities.length === 0 && <div className="text-center p-6 border-2 border-dashed border-slate-800 rounded-lg text-slate-500 text-xs">暂无元素，请先分析剧本</div>}
-                                {entities.map(entity => (
-                                    <div key={entity.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700 mb-3">
-                                        <div className="flex items-center gap-2 text-white font-medium text-sm mb-2">
-                                            <span className={`p-1 rounded ${entity.type === 'CHARACTER' ? 'bg-blue-500/20 text-blue-300' : 'bg-green-500/20 text-green-300'}`}>{getIcon(entity.type)}</span> {entity.name}
-                                        </div>
-                                        <div onClick={() => triggerUpload(entity.id)} className={`relative h-40 rounded-md border-2 border-dashed flex items-center justify-center cursor-pointer overflow-hidden group ${entity.referenceImage ? 'border-slate-800 bg-black' : 'border-slate-600 hover:border-slate-500'}`}>
-                                            {entity.referenceImage ? (
-                                                <>
-                                                    <img src={entity.referenceImage} alt="Ref" className="w-full h-full object-contain bg-black" />
-                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center"><Upload className="w-5 h-5 text-white" /></div>
-                                                </>
-                                            ) : <div className="text-center text-slate-400"><ImageIcon className="w-6 h-6 mx-auto mb-1"/><span className="text-[10px]">上传参考图</span></div>}
-                                        </div>
-                                        {entity.type === 'SCENE' && <p className="text-[10px] text-pink-400 mt-1">*生视频时作为场景参考</p>}
-                                        <textarea value={entity.description} onChange={(e) => onUpdateEntity(entity.id, { description: e.target.value })} className="w-full bg-slate-900 text-slate-300 text-xs p-2 rounded border border-slate-700 mt-2" rows={3} placeholder="描述..." />
-                                    </div>
-                                ))}
-                            </div>
+                        ))}
+                    </div>
+                    {projects.length === 0 && (
+                        <div className="text-center text-slate-600 py-20 border-2 border-dashed border-slate-800 rounded-xl">
+                            <Library className="w-12 h-12 mx-auto mb-4 opacity-20"/>
+                            <p>暂无项目，请在上方创建</p>
                         </div>
                     )}
                 </div>
-            );
+            )
         };
 
-        // 3. ResultFeed
-        const ResultFeed = ({ shots, entities, mode, onGenerateImage, onGenerateVideo, onUpdateShot }) => {
-            const [editingId, setEditingId] = useState(null);
-            const getSceneRef = (text) => {
-                const scene = entities.find(e => e.type === 'SCENE' && e.referenceImage && text.toLowerCase().includes(e.name.toLowerCase()));
-                return scene?.referenceImage;
+        const SettingsPanel = ({settings, onUpdate}) => {
+            const [open, setOpen] = useState(false);
+            const [testing, setTesting] = useState({}); // { key: boolean }
+            const [status, setStatus] = useState({}); // { key: 'success' | 'error' | null }
+
+            const handleTest = async (type) => {
+                const keys = {
+                    'ANALYSIS': { url: settings.analysisApiUrl, key: settings.analysisApiKey, body: { model: "gpt-3.5-turbo", messages: [{role:"user", content:"ping"}] } },
+                    'IMAGE': { url: settings.imageApiUrl, key: settings.imageApiKey, body: { prompt: "test" } },
+                    'VIDEO': { url: settings.videoApiUrl, key: settings.videoApiKey, body: { prompt: "test" } },
+                };
+
+                const config = keys[type];
+                if (!config.url || !config.key) {
+                    alert("请先填写 URL 和 Key");
+                    return;
+                }
+
+                setTesting(p => ({...p, [type]: true}));
+                setStatus(p => ({...p, [type]: null}));
+
+                try {
+                    await callProxy(config.url, config.key, config.body);
+                    setStatus(p => ({...p, [type]: 'success'}));
+                } catch (e) {
+                    alert(`测试失败: ${e.message}`);
+                    setStatus(p => ({...p, [type]: 'error'}));
+                } finally {
+                    setTesting(p => ({...p, [type]: false}));
+                }
             };
 
-            return (
-                <div className="flex flex-col h-full bg-slate-950">
-                    <div className="p-4 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
-                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                            {mode === 'STORYBOARD' ? <ImageIcon className="w-5 h-5 text-indigo-400" /> : <VideoIcon className="w-5 h-5 text-pink-500" />}
-                            {mode === 'STORYBOARD' ? '分镜生成' : '视频直接生成'}
-                        </h2>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-6">
-                        {shots.length === 0 && <div className="text-center p-20 text-slate-600"><Clapperboard className="w-16 h-16 mx-auto mb-4 opacity-20"/>暂无镜头</div>}
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-20">
-                            {shots.map((shot) => (
-                                <div key={shot.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col">
-                                    <div className="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center shrink-0">
-                                        <span className="font-mono text-xs text-slate-400 font-bold uppercase">Shot #{shot.shotNumber}</span>
-                                        <button onClick={() => setEditingId(editingId === shot.id ? null : shot.id)} className="text-slate-500 hover:text-white"><Edit2 className="w-4 h-4" /></button>
-                                    </div>
-                                    <div className="p-4 flex-1 flex flex-col">
-                                        <p className="text-slate-300 text-sm mb-4 italic border-l-2 border-slate-700 pl-3">"{shot.scriptSegment}"</p>
-                                        {editingId === shot.id && (
-                                            <div className="mb-4 bg-slate-950 p-4 rounded border border-slate-700">
-                                                <label className="text-xs text-slate-500 font-bold">提示词 (Prompt)</label>
-                                                <textarea className="w-full bg-slate-900 text-xs text-slate-300 p-2 border border-slate-700 mt-1" rows={3}
-                                                    value={mode === 'STORYBOARD' ? (shot.userEditedVisualPrompt || shot.visualPrompt) : (shot.userEditedVideoPrompt || shot.videoPrompt)}
-                                                    onChange={(e) => onUpdateShot(shot.id, mode === 'STORYBOARD' ? { userEditedVisualPrompt: e.target.value } : { userEditedVideoPrompt: e.target.value })}
-                                                />
-                                            </div>
-                                        )}
-                                        {mode === 'STORYBOARD' ? (
-                                            <div className="flex flex-col gap-4 flex-1">
-                                                <div className="aspect-[3/4] w-full bg-slate-950 rounded border border-slate-800 flex items-center justify-center relative overflow-hidden">
-                                                    {shot.generatedImageUrl ? <img src={shot.generatedImageUrl} className="w-full h-full object-contain bg-black" /> : shot.isGeneratingImage ? <div className="text-indigo-400 flex flex-col items-center"><Loader2 className="animate-spin w-8 h-8"/><span className="text-xs">绘制中...</span></div> : <div className="text-slate-700"><ImageIcon className="w-10 h-10"/></div>}
-                                                </div>
-                                                <button onClick={() => onGenerateImage(shot.id, shot.userEditedVisualPrompt || shot.visualPrompt)} disabled={shot.isGeneratingImage} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded flex justify-center gap-2 disabled:opacity-50 mt-auto">{shot.generatedImageUrl ? "重新生成" : "生成分镜"}</button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col gap-4 flex-1">
-                                                <div className="aspect-video w-full bg-slate-950 rounded border border-slate-800 flex items-center justify-center relative overflow-hidden">
-                                                    {shot.generatedVideoUrl ? <video src={shot.generatedVideoUrl} controls className="w-full h-full object-cover" /> : shot.isGeneratingVideo ? <div className="text-pink-400 flex flex-col items-center"><Loader2 className="animate-spin w-8 h-8"/><span className="text-xs">生成中...</span></div> : <div className="text-slate-700"><Film className="w-10 h-10"/></div>}
-                                                </div>
-                                                <button onClick={() => onGenerateVideo(shot.id, shot.userEditedVideoPrompt || shot.videoPrompt, getSceneRef(shot.scriptSegment))} disabled={shot.isGeneratingVideo} className="w-full py-3 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold rounded flex justify-center gap-2 disabled:opacity-50 mt-auto">{shot.generatedVideoUrl ? "重新生成" : "生成视频"}</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+            const TestBtn = ({type}) => (
+                <button 
+                    onClick={() => handleTest(type)}
+                    disabled={testing[type]}
+                    className={`text-[10px] px-2 py-0.5 rounded ml-2 border transition-colors flex items-center gap-1
+                        ${status[type] === 'success' ? 'bg-green-900/30 border-green-600 text-green-400' : 
+                          status[type] === 'error' ? 'bg-red-900/30 border-red-600 text-red-400' : 
+                          'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+                >
+                    {testing[type] ? <Loader2 className="w-3 h-3 animate-spin"/> : 
+                     status[type] === 'success' ? <Check className="w-3 h-3"/> :
+                     status[type] === 'error' ? <AlertCircle className="w-3 h-3"/> :
+                     "测试连接"}
+                </button>
             );
-        };
-
-        // 4. Dashboard
-        const Dashboard = ({ projects, onSelectProject, onCreateProject, onDeleteProject }) => {
-            const [isCreating, setIsCreating] = useState(false);
-            const [newName, setNewName] = useState('');
-
-            const handleCreate = (e) => { e.preventDefault(); if (newName.trim()) { onCreateProject(newName); setNewName(''); setIsCreating(false); }};
 
             return (
-                <div className="h-full w-full bg-slate-950 p-10 overflow-y-auto">
-                    <div className="max-w-4xl mx-auto">
-                        <div className="flex justify-between items-center mb-10">
-                            <div><h1 className="text-3xl font-bold text-white mb-2">流光漫剧工作台</h1><p className="text-slate-400">管理你的剧本、分镜与视频生成项目。</p></div>
-                            <button onClick={() => setIsCreating(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2"><Plus className="w-5 h-5" /> 新建剧集</button>
-                        </div>
-                        {isCreating && (
-                            <div className="mb-8 bg-slate-900 p-6 rounded-xl border border-slate-800">
-                                <form onSubmit={handleCreate} className="flex gap-4">
-                                    <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="剧集名称..." className="flex-1 bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded" autoFocus />
-                                    <button type="submit" className="bg-white text-slate-900 font-bold px-6 py-2 rounded">创建</button>
-                                    <button type="button" onClick={() => setIsCreating(false)} className="text-slate-400 px-4 py-2">取消</button>
-                                </form>
+                <div className="relative z-50">
+                    <button onClick={() => setOpen(!open)} className="text-xs bg-slate-800 border border-slate-700 hover:bg-slate-700 px-3 py-1.5 rounded flex items-center gap-2 text-slate-300 transition-colors">
+                        <Settings className="w-3 h-3"/> API 配置
+                    </button>
+                    {open && (
+                        <>
+                            <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setOpen(false)}></div>
+                            <div className="absolute right-0 top-12 w-96 bg-slate-900 border border-slate-700 p-5 rounded-lg shadow-2xl space-y-5 z-50">
+                                <h3 className="font-bold text-sm text-white border-b border-slate-800 pb-2 flex justify-between items-center">
+                                    接口设置
+                                    <span className="text-[10px] text-slate-500 font-normal">点击右侧按钮检测可用性</span>
+                                </h3>
+                                <div>
+                                    <label className="text-[10px] text-indigo-400 font-bold mb-1 flex items-center">
+                                        剧本分析 (Comfly / 通用 LLM) <TestBtn type="ANALYSIS"/>
+                                    </label>
+                                    <input value={settings.analysisApiUrl || ''} onChange={e=>onUpdate('analysisApiUrl', e.target.value)} className="w-full bg-slate-950 text-xs p-2 rounded border border-slate-800 text-slate-300 mb-1 focus:border-indigo-500 outline-none"/>
+                                    <input value={settings.analysisApiKey || ''} onChange={e=>onUpdate('analysisApiKey', e.target.value)} placeholder="Key (sk-...)" type="password" className="w-full bg-slate-950 text-xs p-2 rounded border border-slate-800 text-slate-300 focus:border-indigo-500 outline-none"/>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-pink-400 font-bold mb-1 flex items-center">
+                                        图片生成 (Comfly / Flux) <TestBtn type="IMAGE"/>
+                                    </label>
+                                    <input value={settings.imageApiUrl || ''} onChange={e=>onUpdate('imageApiUrl', e.target.value)} className="w-full bg-slate-950 text-xs p-2 rounded border border-slate-800 text-slate-300 mb-1 focus:border-pink-500 outline-none"/>
+                                    <input value={settings.imageApiKey || ''} onChange={e=>onUpdate('imageApiKey', e.target.value)} placeholder="Key" type="password" className="w-full bg-slate-950 text-xs p-2 rounded border border-slate-800 text-slate-300 focus:border-pink-500 outline-none"/>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-blue-400 font-bold mb-1 flex items-center">
+                                        视频生成 (云雾 Yunwu) <TestBtn type="VIDEO"/>
+                                    </label>
+                                    <input value={settings.videoApiUrl || ''} onChange={e=>onUpdate('videoApiUrl', e.target.value)} className="w-full bg-slate-950 text-xs p-2 rounded border border-slate-800 text-slate-300 mb-1 focus:border-blue-500 outline-none"/>
+                                    <input value={settings.videoApiKey || ''} onChange={e=>onUpdate('videoApiKey', e.target.value)} placeholder="Key" type="password" className="w-full bg-slate-950 text-xs p-2 rounded border border-slate-800 text-slate-300 focus:border-blue-500 outline-none"/>
+                                </div>
                             </div>
-                        )}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {projects.map(p => (
-                                <div key={p.id} className="bg-slate-900 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-6 relative group">
-                                    <div onClick={() => onSelectProject(p)} className="cursor-pointer">
-                                        <div className="flex justify-between items-start mb-4"><FolderOpen className="w-6 h-6 text-indigo-400" /><span className="text-xs text-slate-500">{new Date(p.createdAt).toLocaleDateString()}</span></div>
-                                        <h3 className="text-lg font-bold text-white mb-2 truncate">{p.name}</h3>
-                                        <div className="text-xs text-slate-400">{p.shots.length} 个镜头</div>
-                                    </div>
-                                    <button onClick={(e) => { e.stopPropagation(); onDeleteProject(p.id); }} className="absolute top-4 right-4 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4"/></button>
+                        </>
+                    )}
+                </div>
+            )
+        };
+
+        const LibraryPanel = ({libs, onChange}) => {
+            const [open, setOpen] = useState(true);
+            const [dragTarget, setDragTarget] = useState(null);
+
+            const handleDrop = (e, key) => {
+                e.preventDefault();
+                setDragTarget(null);
+                const file = e.dataTransfer.files[0];
+                if (file && file.name.endsWith('.txt')) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => onChange(key, ev.target.result);
+                    reader.readAsText(file);
+                }
+            };
+
+            const InputArea = ({label, val, k, ph}) => (
+                <div 
+                    className={`relative group ${dragTarget === k ? 'drag-active' : ''}`}
+                    onDragOver={e => { e.preventDefault(); setDragTarget(k); }}
+                    onDragLeave={() => setDragTarget(null)}
+                    onDrop={e => handleDrop(e, k)}
+                >
+                    <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] text-slate-400">{label}</label>
+                        <span className="text-[9px] text-slate-600 group-hover:text-indigo-400 transition-colors">支持拖入 .txt</span>
+                    </div>
+                    <textarea value={val || ''} onChange={e=>onChange(k, e.target.value)} placeholder={ph} className="w-full text-[10px] bg-slate-800 p-2 rounded border border-slate-700 focus:border-indigo-500 outline-none resize-none h-16 transition-all"/>
+                </div>
+            );
+
+            return (
+                <div className="mb-4 bg-slate-800/30 rounded-lg border border-slate-800/50 overflow-hidden">
+                    <button onClick={()=>setOpen(!open)} className="w-full flex justify-between text-xs font-bold text-amber-400 p-3 bg-slate-800/50 hover:bg-slate-800 transition-colors items-center">
+                        <span className="flex gap-2 items-center"><Library className="w-3 h-3"/> 📚 核心设定库</span> 
+                        {open?<ChevronDown className="w-3 h-3"/>:<ChevronRight className="w-3 h-3"/>}
+                    </button>
+                    {open && (
+                        <div className="p-3 space-y-3">
+                            <InputArea label="剧本风格设定" val={libs?.script} k="script" ph="例如：赛博朋克风格，强调心理描写..."/>
+                            <InputArea label="画面通用提示词 (Visual)" val={libs?.image} k="image" ph="例如：Ghibli style, vibrant colors..."/>
+                            <InputArea label="视频通用提示词 (Video)" val={libs?.video} k="video" ph="例如：4k, slow motion, cinematic lighting..."/>
+                        </div>
+                    )}
+                </div>
+            )
+        };
+
+        const EntitiesPanel = ({entities, onChange}) => {
+            const refInput = useRef(null);
+            const curId = useRef(null);
+            
+            const handleUpload = (e) => {
+                const f = e.target.files[0];
+                if(f && curId.current) {
+                    const r = new FileReader();
+                    r.onload = () => onChange(entities.map(en => en.id===curId.current ? {...en, referenceImage: r.result} : en));
+                    r.readAsDataURL(f);
+                }
+            };
+
+            return (
+                <div className="flex-1 flex flex-col min-h-0">
+                    <h3 className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-2"><User className="w-3 h-3"/> 元素/角色库</h3>
+                    <input type="file" ref={refInput} className="hidden" accept="image/*" onChange={handleUpload}/>
+                    <div className="overflow-y-auto flex-1 pr-1 space-y-2">
+                        {(!entities || entities.length === 0) && <div className="text-[10px] text-slate-600 text-center py-4">分析剧本后自动生成</div>}
+                        {entities && entities.map(e => (
+                            <div key={e.id} className="bg-slate-800 p-2 rounded border border-slate-700 hover:border-slate-600 transition-colors">
+                                <div className="flex justify-between text-xs font-bold mb-2">
+                                    <span className="text-slate-200">{e.name}</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-slate-700 rounded text-slate-400">{e.type}</span>
                                 </div>
-                            ))}
+                                <div className="flex gap-2">
+                                    <div onClick={()=>{curId.current=e.id; refInput.current.click()}} className="w-16 h-16 bg-black/40 rounded border border-dashed border-slate-600 flex-shrink-0 flex items-center justify-center cursor-pointer hover:border-indigo-500 transition-colors overflow-hidden group relative">
+                                        {e.referenceImage ? <img src={e.referenceImage} className="w-full h-full object-contain"/> : <span className="text-[9px] text-slate-500 group-hover:text-indigo-400">上传</span>}
+                                    </div>
+                                    <textarea value={e.description || ''} onChange={ev=>onChange(entities.map(en=>en.id===e.id?{...en, description: ev.target.value}:en))} className="flex-1 text-[10px] bg-slate-900 border border-slate-700 rounded p-1.5 focus:border-indigo-500 outline-none resize-none text-slate-300" placeholder="元素描述..."/>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )
+        };
+
+        const ShotCard = ({shot, entities, onGenImg, onGenVideo, onUpdate}) => {
+            const findScene = (txt) => {
+                if (!txt || !entities) return null;
+                return entities.find(e => e.type === 'SCENE' && e.referenceImage && txt.includes(e.name))?.referenceImage;
+            };
+            
+            return (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col hover:border-slate-700 transition-all shadow-lg">
+                    <div className="p-3 border-b border-slate-800 flex justify-between bg-slate-900/80">
+                        <span className="text-xs font-bold text-indigo-400">Shot #{shot.shotNumber}</span>
+                        <div className="flex gap-2">
+                           <span className="w-2 h-2 rounded-full bg-slate-700"></span>
+                        </div>
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col gap-4">
+                        <p className="text-sm text-slate-300 italic border-l-2 border-indigo-500/50 pl-3 py-1 bg-slate-800/30 rounded-r">
+                            {shot.scriptSegment || "..."}
+                        </p>
+                        
+                        <div className="bg-black/30 p-2 rounded border border-slate-800/50 group focus-within:border-indigo-500/50 transition-colors">
+                            <label className="text-[9px] text-slate-500 block mb-1 uppercase font-bold">Visual Prompt</label>
+                            <textarea value={shot.visualPrompt || ''} onChange={e=>onUpdate({visualPrompt: e.target.value})} className="w-full bg-transparent text-xs text-slate-300 outline-none resize-none h-12" placeholder="生成前可编辑..."/>
+                        </div>
+
+                        {/* Media Display Area */}
+                        <div className="grid grid-cols-2 gap-3 h-48">
+                            {/* Image Slot */}
+                            <div className="bg-black rounded-lg border border-slate-800 relative overflow-hidden flex items-center justify-center group">
+                                {shot.imgUrl ? 
+                                    <img src={shot.imgUrl} className="w-full h-full object-contain bg-black"/> : 
+                                    shot.loadingImg ? <Loader2 className="animate-spin text-pink-500 w-8 h-8"/> : 
+                                    <div className="flex flex-col items-center gap-2 text-slate-700"><ImageIcon className="w-8 h-8"/><span className="text-[10px]">Empty</span></div>
+                                }
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                    <button onClick={()=>onGenImg(shot.visualPrompt)} disabled={shot.loadingImg} className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-all">
+                                        {shot.imgUrl ? '重新生成' : '生成分镜图'}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {/* Video Slot */}
+                            <div className="bg-black rounded-lg border border-slate-800 relative overflow-hidden flex items-center justify-center group">
+                                {shot.videoUrl ? 
+                                    <video src={shot.videoUrl} controls className="w-full h-full object-contain bg-black"/> : 
+                                    shot.loadingVideo ? <Loader2 className="animate-spin text-blue-500 w-8 h-8"/> : 
+                                    <div className="flex flex-col items-center gap-2 text-slate-700"><VideoIcon className="w-8 h-8"/><span className="text-[10px]">Empty</span></div>
+                                }
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                    <button onClick={()=>onGenVideo(shot.videoPrompt, findScene(shot.scriptSegment))} disabled={shot.loadingVideo} className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-all">
+                                        {shot.videoUrl ? '重新生成' : '生成视频'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            );
+            )
         };
 
-        // --- MAIN APP ---
+        // --- MAIN APP COMPONENT ---
         const App = () => {
-            const [view, setView] = useState('DASHBOARD');
-            const [projects, setProjects] = useState([]);
-            const [currentProjectId, setCurrentProjectId] = useState(null);
-            const [isAnalyzing, setIsAnalyzing] = useState(false);
-            const [settings, setSettings] = useState({ analysisApiUrl: '', analysisApiKey: '', imageApiUrl: '', imageApiKey: '', videoApiUrl: '', videoApiKey: '' });
-
-            useEffect(() => { 
-                setProjects(loadProjects()); 
-                const savedSettings = localStorage.getItem('scriptviz_settings');
-                if (savedSettings) setSettings(JSON.parse(savedSettings));
+            const [settings, setSettings] = useState({
+                analysisApiUrl: 'https://api.openai.com/v1/chat/completions', 
+                analysisApiKey: '',
+                imageApiUrl: 'https://api.comfly.chat/v1/images/generations',
+                imageApiKey: '',
+                videoApiUrl: 'https://api.yunwu.ai/v1/video/create_task',
+                videoApiKey: ''
+            });
+            
+            useEffect(() => {
+                const saved = localStorage.getItem('lg_settings');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        // Merge with defaults to prevent missing keys causing uncontrolled inputs
+                        setSettings(s => ({...s, ...parsed}));
+                    } catch(e) {}
+                }
             }, []);
-
-            useEffect(() => saveProjects(projects), [projects]);
-            useEffect(() => localStorage.setItem('scriptviz_settings', JSON.stringify(settings)), [settings]);
-
-            const currentProject = projects.find(p => p.id === currentProjectId);
-            // Helper to update fields in current project
-            const updateCurrentProject = (updates) => setProjects(prev => prev.map(p => p.id === currentProjectId ? { ...p, ...updates } : p));
-
-            const handleAnalyze = async (scriptText) => {
-                setIsAnalyzing(true);
-                try {
-                    // Pass libraries to analysis
-                    const result = await analyzeScript(scriptText, settings, currentProject.libraries);
-                    updateCurrentProject({ scriptText, entities: result.entities, shots: result.shots });
-                } catch (e) { alert(e.message); } finally { setIsAnalyzing(false); }
+            
+            const updateSetting = (k, v) => {
+                const newS = {...settings, [k]: v};
+                setSettings(newS);
+                localStorage.setItem('lg_settings', JSON.stringify(newS));
             };
 
-            const handleGenerateImage = async (id, prompt) => {
-                updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, isGeneratingImage: true } : s) });
+            const [view, setView] = useState('DASHBOARD');
+            const [projects, setProjects] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('lg_projects') || '[]'); } catch(e) { return []; }
+            });
+            const [curProjId, setCurProjId] = useState(null);
+            
+            useEffect(() => localStorage.setItem('lg_projects', JSON.stringify(projects)), [projects]);
+
+            const curProj = useMemo(() => projects.find(p => p.id === curProjId), [projects, curProjId]);
+
+            const updateProj = (data) => {
+                if (!curProjId) return;
+                setProjects(prev => prev.map(p => p.id === curProjId ? {...p, ...data} : p));
+            };
+
+            // Handlers
+            const handleCreate = (name) => {
+                const newP = {
+                    id: Date.now(), 
+                    name, 
+                    created: Date.now(), 
+                    libraries: {script:'', image:'', video:''}, 
+                    entities: [], 
+                    shots: []
+                };
+                setProjects(prev => [newP, ...prev]);
+                setCurProjId(newP.id);
+                setTimeout(() => setView('EDITOR'), 50); 
+            };
+
+            const doAnalyze = async (txt) => {
+                if(!txt.trim()) return alert("请输入剧本");
+                updateProj({isAnalyzing: true});
                 try {
-                    // Pass libraries to image generation
-                    const url = await generateComicStrip(prompt, currentProject.entities, settings, currentProject.libraries);
-                    updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, generatedImageUrl: url, isGeneratingImage: false } : s) });
-                } catch (e) {
-                    alert(e.message);
-                    updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, isGeneratingImage: false } : s) });
+                    const res = await analyzeScript(txt, settings, curProj.libraries || {});
+                    updateProj({script: txt, entities: res.entities, shots: res.shots, isAnalyzing: false});
+                } catch(e) { 
+                    alert(e.message); 
+                    updateProj({isAnalyzing: false}); 
                 }
             };
 
-            const handleGenerateVideo = async (id, prompt, refImg) => {
-                updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, isGeneratingVideo: true } : s) });
+            const doGenImg = async (shotId, prompt) => {
+                const newShots = curProj.shots.map(s => s.id === shotId ? {...s, loadingImg: true} : s);
+                updateProj({shots: newShots});
                 try {
-                    // Pass libraries to video generation
-                    const url = await generateVeoVideo(prompt, refImg, settings, currentProject.libraries);
-                    updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, generatedVideoUrl: url, isGeneratingVideo: false } : s) });
-                } catch (e) {
-                    alert(e.message);
-                    updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, isGeneratingVideo: false } : s) });
+                    const url = await generateImage(prompt, settings);
+                    updateProj({shots: curProj.shots.map(s => s.id === shotId ? {...s, loadingImg: false, imgUrl: url} : s)});
+                } catch(e) { 
+                    alert(e.message); 
+                    updateProj({shots: curProj.shots.map(s => s.id === shotId ? {...s, loadingImg: false} : s)}); 
                 }
             };
 
-            if (view === 'DASHBOARD') return <Dashboard projects={projects} onCreateProject={(name) => {
-                // Initialize with empty libraries
-                const newP = { id: `proj-${Date.now()}`, name, createdAt: Date.now(), scriptText: '', entities: [], shots: [], mode: 'STORYBOARD', libraries: { script: '', image: '', video: '' } };
-                setProjects([newP, ...projects]); setCurrentProjectId(newP.id); setView('EDITOR');
-            }} onSelectProject={p => { setCurrentProjectId(p.id); setView('EDITOR'); }} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} />;
+            const doGenVideo = async (shotId, prompt, refImg) => {
+                const newShots = curProj.shots.map(s => s.id === shotId ? {...s, loadingVideo: true} : s);
+                updateProj({shots: newShots});
+                try {
+                    const url = await generateVideo(prompt, refImg, settings);
+                    updateProj({shots: curProj.shots.map(s => s.id === shotId ? {...s, loadingVideo: false, videoUrl: url} : s)});
+                } catch(e) { 
+                    alert(e.message); 
+                    updateProj({shots: curProj.shots.map(s => s.id === shotId ? {...s, loadingVideo: false} : s)}); 
+                }
+            };
+
+            // Render
+            if (view === 'DASHBOARD') {
+                return <Dashboard 
+                    projects={projects} 
+                    onCreate={handleCreate}
+                    onSelect={p => {setCurProjId(p.id); setView('EDITOR');}}
+                    onDelete={id => setProjects(prev => prev.filter(p => p.id !== id))}
+                />;
+            }
+
+            if (!curProj) return <div className="h-screen flex items-center justify-center text-slate-500 bg-slate-950"><Loader2 className="animate-spin w-8 h-8"/></div>;
 
             return (
-                <div className="h-screen w-screen bg-slate-950 text-slate-100 flex font-sans overflow-hidden flex-col">
-                    <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-4">
-                        <button onClick={() => setView('DASHBOARD')} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm font-bold"><ArrowLeft className="w-4 h-4" /> 项目列表</button>
-                        <div className="h-4 w-px bg-slate-700" />
-                        <span className="text-sm font-medium text-white">{currentProject?.name}</span>
+                <div className="h-screen flex flex-col bg-slate-950 text-white">
+                    {/* Header */}
+                    <div className="h-14 border-b border-slate-800 flex items-center px-6 gap-4 bg-slate-900 shadow-sm z-10">
+                        <button onClick={() => setView('DASHBOARD')} className="text-slate-400 hover:text-white flex items-center gap-1 text-xs font-bold transition-colors">
+                            <ArrowLeft className="w-4 h-4"/> 项目列表
+                        </button>
+                        <div className="h-4 w-[1px] bg-slate-700"></div>
+                        <span className="text-sm font-bold text-white tracking-wide">{curProj.name}</span>
+                        <div className="flex-1"></div>
+                        <SettingsPanel settings={settings} onUpdate={updateSetting} />
                     </div>
+
+                    {/* Main Content */}
                     <div className="flex-1 flex overflow-hidden">
-                        <div className="w-[20%] min-w-[300px] h-full flex-shrink-0"><ScriptInput onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} /></div>
-                        
-                        <div className="w-[25%] min-w-[300px] h-full flex-shrink-0">
-                            <ContextPanel 
-                                entities={currentProject?.entities || []} 
-                                onUpdateEntity={(id, u) => updateCurrentProject({ entities: currentProject.entities.map(e => e.id === id ? { ...e, ...u } : e) })} 
-                                mode={currentProject?.mode || 'STORYBOARD'} 
-                                onModeChange={m => updateCurrentProject({ mode: m })} 
-                                settings={settings} 
-                                onUpdateSettings={setSettings}
-                                libraries={currentProject?.libraries || {}}
-                                onUpdateLibraries={(field, val) => updateCurrentProject({ libraries: { ...currentProject.libraries, [field]: val } })}
+                        {/* Left: Script */}
+                        <div className="w-[320px] border-r border-slate-800 bg-slate-900/50 flex flex-col p-4">
+                            <h3 className="text-xs font-bold text-slate-400 mb-3 flex gap-2 items-center uppercase tracking-wider"><BookOpen className="w-4 h-4 text-indigo-500"/> 剧本输入</h3>
+                            <textarea 
+                                className="flex-1 bg-slate-800 p-3 rounded-lg text-sm text-slate-200 resize-none border border-slate-700 focus:border-indigo-500 outline-none leading-relaxed" 
+                                placeholder="在此处粘贴您的剧本..." 
+                                value={curProj.script || ''} 
+                                onChange={e => updateProj({script: e.target.value})} 
                             />
+                            <button 
+                                onClick={() => doAnalyze(curProj.script)} 
+                                disabled={curProj.isAnalyzing || !curProj.script} 
+                                className="mt-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-bold text-sm flex justify-center items-center gap-2 shadow-lg transition-all"
+                            >
+                                {curProj.isAnalyzing ? <><Loader2 className="animate-spin w-4 h-4"/> AI 分析中...</> : <><Sparkles className="w-4 h-4"/> 开始分析剧本</>}
+                            </button>
                         </div>
-                        
-                        <div className="flex-1 h-full min-w-[400px]"><ResultFeed shots={currentProject?.shots || []} entities={currentProject?.entities || []} mode={currentProject?.mode || 'STORYBOARD'} onGenerateImage={handleGenerateImage} onGenerateVideo={handleGenerateVideo} onUpdateShot={(id, u) => updateCurrentProject({ shots: currentProject.shots.map(s => s.id === id ? { ...s, ...u } : s) })} /></div>
+
+                        {/* Middle: Library & Entities */}
+                        <div className="w-[300px] border-r border-slate-800 bg-slate-900/30 flex flex-col p-4 overflow-hidden">
+                            <div className="flex-shrink-0">
+                                <LibraryPanel libs={curProj.libraries || {script:'', image:'', video:''}} onChange={(k,v) => updateProj({libraries: {...(curProj.libraries||{}), [k]: v}})} />
+                                <div className="h-[1px] bg-slate-800 my-4"></div>
+                            </div>
+                            <EntitiesPanel entities={curProj.entities || []} onChange={newEs => updateProj({entities: newEs})} />
+                        </div>
+
+                        {/* Right: Shots Feed */}
+                        <div className="flex-1 bg-slate-950 p-8 overflow-y-auto scroll-smooth">
+                            {(!curProj.shots || curProj.shots.length === 0) ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-700 space-y-4">
+                                    <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center">
+                                        <VideoIcon className="w-10 h-10 opacity-20"/>
+                                    </div>
+                                    <p>请在左侧输入剧本并点击分析</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-20 max-w-7xl mx-auto">
+                                    {curProj.shots.map(shot => (
+                                        <ShotCard key={shot.id} shot={shot} 
+                                            entities={curProj.entities || []}
+                                            onGenImg={p => doGenImg(shot.id, p)}
+                                            onGenVideo={(p, ref) => doGenVideo(shot.id, p, ref)}
+                                            onUpdate={newS => updateProj({shots: curProj.shots.map(s => s.id === shot.id ? {...s, ...newS} : s)})}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
-    

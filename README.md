@@ -1,18 +1,33 @@
-# 流光漫剧 (Liuguang ScriptViz) - 单文件版
 
-这是一个集成了所有功能的单文件应用。
+# 流光漫剧 (Liuguang ScriptViz) - 桌面版
 
-## 使用方法
+这是一个基于 Python Flask + React 的桌面应用程序。
 
-1. 只需要保留 `index.html` 文件。
-2. **直接双击** `index.html` 即可在浏览器中运行（推荐使用 Chrome 或 Edge）。
-3. 无需安装 Node.js，无需配置环境。
+## 核心文件说明
+- `main.py`: Python 后端，负责启动窗口和转发 API 请求。
+- `index.html`: 前端界面，包含所有 React 逻辑。
+- `requirements.txt`: Python 依赖库。
 
-## API 配置
+## 运行步骤
 
-首次打开后，请点击中间栏顶部的 **“⚙️ API 配置”** 按钮，填入您的服务商 Key：
-- **剧本分析**: 兼容 OpenAI 格式的 LLM 接口
-- **图片**: Comfly / Flux 接口
-- **视频**: 云雾 / Luma 接口
+1. **安装环境**：
+   确保已安装 Python，然后安装依赖：
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-数据会自动保存在浏览器的本地缓存中。
+2. **启动应用**：
+   ```bash
+   python main.py
+   ```
+
+## 常见问题
+- 如果双击 `index.html` 打开，API 请求会失败（跨域错误）。请务必通过 `python main.py` 运行。
+- 如果点击“创建”没反应，请检查 Python 控制台是否有报错。
+- 如果界面白屏，请右键 -> Inspect (检查) -> Console 查看前端报错。
+
+## 打包成 .exe (Windows)
+
+```bash
+pyinstaller --noconfirm --onefile --windowed --name "LiuguangApp" --add-data "index.html;." main.py
+```
